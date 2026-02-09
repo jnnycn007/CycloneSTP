@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2019-2025 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2019-2026 Oryx Embedded SARL. All rights reserved.
  *
  * This file is part of CycloneSTP Open.
  *
@@ -25,7 +25,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.5.4
+ * @version 2.6.0
  **/
 
 //Switch to the appropriate trace level
@@ -93,7 +93,10 @@ error_t stpInit(StpBridgeContext *context, StpBridgeSettings *settings)
    //Clear STP bridge context
    osMemset(context, 0, sizeof(StpBridgeContext));
 
-   //Initialize STP bridge context
+   //Attach TCP/IP stack context
+   context->netContext = settings->interface->netContext;
+
+   //Save user settings
    context->interface = settings->interface;
    context->bridgeId.addr = settings->interface->macAddr;
    context->bridgeId.priority = STP_DEFAULT_BRIDGE_PRIORITY;
@@ -192,13 +195,13 @@ error_t stpStart(StpBridgeContext *context)
             break;
 
          //Register a callback to process incoming LLC frames
-         error = ethAttachLlcRxCalback(interface, stpProcessLlcFrame, context);
+         error = ethAttachLlcRxCallback(interface, stpProcessLlcFrame, context);
          //Any error to report?
          if(error)
             break;
 
          //Register timer callback
-         error = netAttachTimerCallback(STP_TICK_INTERVAL,
+         error = netAttachTimerCallback(context->netContext, STP_TICK_INTERVAL,
             (NetTimerCallback) stpTick, context);
          //Any error to report?
          if(error)
@@ -218,8 +221,13 @@ error_t stpStart(StpBridgeContext *context)
          //Clean up side effects
          ethDropMacAddr(interface, &STP_BRIDGE_GROUP_ADDR);
          stpUnconfigurePermanentDatabase(context);
-         ethDetachLlcRxCalback(interface);
-         netDetachTimerCallback((NetTimerCallback) stpTick, context);
+
+         //Unregister LLC receive callback function
+         ethDetachLlcRxCallback(interface);
+
+         //Unregister timer callback
+         netDetachTimerCallback(context->netContext, (NetTimerCallback) stpTick,
+            context);
       }
    }
    else
@@ -269,9 +277,11 @@ error_t stpStop(StpBridgeContext *context)
       stpUnconfigurePermanentDatabase(context);
 
       //Unregister LLC receive callback function
-      ethDetachLlcRxCalback(interface);
+      ethDetachLlcRxCallback(interface);
+
       //Unregister timer callback
-      netDetachTimerCallback((NetTimerCallback) stpTick, context);
+      netDetachTimerCallback(context->netContext, (NetTimerCallback) stpTick,
+         context);
 
       //Restore default ageing time
       stpUpdateAgeingTime(context, STP_DEFAULT_AGEING_TIME);

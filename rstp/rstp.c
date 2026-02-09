@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2019-2025 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2019-2026 Oryx Embedded SARL. All rights reserved.
  *
  * This file is part of CycloneSTP Open.
  *
@@ -25,7 +25,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.5.4
+ * @version 2.6.0
  **/
 
 //Switch to the appropriate trace level
@@ -90,7 +90,10 @@ error_t rstpInit(RstpBridgeContext *context, RstpBridgeSettings *settings)
    //Clear RSTP bridge context
    osMemset(context, 0, sizeof(RstpBridgeContext));
 
-   //Initialize RSTP bridge context
+   //Attach TCP/IP stack context
+   context->netContext = settings->interface->netContext;
+
+   //Save user settings
    context->interface = settings->interface;
    context->bridgeId.addr = settings->interface->macAddr;
    context->bridgeId.priority = RSTP_DEFAULT_BRIDGE_PRIORITY;
@@ -203,14 +206,14 @@ error_t rstpStart(RstpBridgeContext *context)
             break;
 
          //Register a callback to process incoming LLC frames
-         error = ethAttachLlcRxCalback(interface, rstpProcessLlcFrame,
+         error = ethAttachLlcRxCallback(interface, rstpProcessLlcFrame,
             context);
          //Any error to report?
          if(error)
             break;
 
          //Register timer callback
-         error = netAttachTimerCallback(RSTP_TICK_INTERVAL,
+         error = netAttachTimerCallback(context->netContext, RSTP_TICK_INTERVAL,
             (NetTimerCallback) rstpTick, context);
          //Any error to report?
          if(error)
@@ -230,8 +233,13 @@ error_t rstpStart(RstpBridgeContext *context)
          //Clean up side effects
          ethDropMacAddr(interface, &RSTP_BRIDGE_GROUP_ADDR);
          rstpUnconfigurePermanentDatabase(context);
-         ethDetachLlcRxCalback(interface);
-         netDetachTimerCallback((NetTimerCallback) rstpTick, context);
+
+         //Unregister LLC receive callback function
+         ethDetachLlcRxCallback(interface);
+
+         //Unregister timer callback
+         netDetachTimerCallback(context->netContext,
+            (NetTimerCallback) rstpTick, context);
       }
    }
    else
@@ -281,9 +289,11 @@ error_t rstpStop(RstpBridgeContext *context)
       rstpUnconfigurePermanentDatabase(context);
 
       //Unregister LLC receive callback function
-      ethDetachLlcRxCalback(interface);
+      ethDetachLlcRxCallback(interface);
+
       //Unregister timer callback
-      netDetachTimerCallback((NetTimerCallback) rstpTick, context);
+      netDetachTimerCallback(context->netContext, (NetTimerCallback) rstpTick,
+         context);
 
       //Restore default ageing time
       rstpUpdateAgeingTime(context, RSTP_DEFAULT_AGEING_TIME);

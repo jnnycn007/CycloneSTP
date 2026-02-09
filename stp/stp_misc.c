@@ -6,7 +6,7 @@
  *
  * SPDX-License-Identifier: GPL-2.0-or-later
  *
- * Copyright (C) 2019-2025 Oryx Embedded SARL. All rights reserved.
+ * Copyright (C) 2019-2026 Oryx Embedded SARL. All rights reserved.
  *
  * This file is part of CycloneSTP Open.
  *
@@ -25,7 +25,7 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
  *
  * @author Oryx Embedded SARL (www.oryx-embedded.com)
- * @version 2.5.4
+ * @version 2.6.0
  **/
 
 //Switch to the appropriate trace level
@@ -59,7 +59,7 @@ const StpParamName stpPortStates[] =
 void stpLock(StpBridgeContext *context)
 {
    //Acquire exclusive access
-   osAcquireMutex(&netMutex);
+   netLock(context->netContext);
 }
 
 
@@ -71,7 +71,7 @@ void stpLock(StpBridgeContext *context)
 void stpUnlock(StpBridgeContext *context)
 {
    //Release exclusive access
-   osReleaseMutex(&netMutex);
+   netUnlock(context->netContext);
 }
 
 
